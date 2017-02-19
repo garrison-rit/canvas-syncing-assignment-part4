@@ -2,6 +2,8 @@ const http = require('http');
 const fs = require('fs');
 const socketio = require('socket.io');
 
+const imageResponses = require('./imageResponses.js');
+
 const port = process.env.PORT || process.env.NODE_PORT || 3000;
 
 // read the index into memory
@@ -9,9 +11,13 @@ const index = fs.readFileSync(`${__dirname}/../client/index.html`);
 
 
 const onRequest = (request, response) => {
-  response.writeHead(200, { 'Content-Type': 'text/html' });
-  response.write(index);
-  response.end();
+  if (request.url.indexOf('.jpg') !== -1) {
+    if (request.url.indexOf('mario') !== -1) { imageResponses.getMario(request, response); } else { imageResponses.getLuigi(request, response); }
+  } else {
+    response.writeHead(200, { 'Content-Type': 'text/html' });
+    response.write(index);
+    response.end();
+  }
 };
 
 const app = http.createServer(onRequest).listen(port);

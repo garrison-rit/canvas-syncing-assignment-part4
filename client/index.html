@@ -16,15 +16,20 @@
         let dragging = false;
         let myId = -1;
 
+        let sendBufferCanvas;
+        let sendBufferCtx;
+        let myImage;
+
         //drawing stuffs, based on my 330 drawing submission
     
         function constructShape(mouse)
         {
+             /*These adjustments keep the rectangle tool working even if the user drags from right to left. Recall that canvas will draw a rectangle left to right with the ctx.fillRect() and ctx.strokeRect() methods*/
             return {
-                x : Math.min(mouse.x,origin.x),
-                y : Math.min(mouse.y,origin.y),
-                width : Math.abs(mouse.x-origin.x),
-                height : Math.abs(mouse.y-origin.y)
+                x :Math.min(mouse.x,origin.x),
+                y :Math.min(mouse.y,origin.y),
+                width : Math.max(Math.min(Math.abs(mouse.x-origin.x),sendBufferCanvas.width),-sendBufferCanvas.width),
+                height : Math.max(Math.min(Math.abs(mouse.y-origin.y),sendBufferCanvas.width),-sendBufferCanvas.width)
             };
         }
     
@@ -53,11 +58,12 @@
             //get location of mouse in canvas coordinates
             var mouse=getMouse(e);
             
-             /*These adjustments keep the rectangle tool working even if the user drags from right to left. Recall that canvas will draw a rectangle left to right with the ctx.fillRect() and ctx.strokeRect() methods*/
             let shape = constructShape(mouse);
             
             //fillandstroketherectangle
             topCtx.clear();
+            
+            //draw(shape);
             topCtx.fillRect(shape.x,shape.y,shape.width,shape.height);
     	}
     	
@@ -65,8 +71,19 @@
             if(!dragging)return;
             topCtx.clear();
             
-            socket.emit("draw", {shape:constructShape(
-            getMouse(e))});
+            let shape = constructShape(
+            getMouse(e));
+            
+            let point = {
+                x: 0,//shape.width >=0 ? 0 : -sendBufferCanvas.width,
+                y: 0//shape.height >=0 ? 0 : -sendBufferCanvas.height
+            }
+            sendBufferCtx.clear();
+            sendBufferCtx.drawImage(myImage, 0,0, sendBufferCanvas.width, sendBufferCanvas.height);
+            
+            shape.imgData = sendBufferCanvas.toDataURL();//myImage;
+            
+            socket.emit("draw", {shape});
             
             dragging = false;
     	}
@@ -77,13 +94,28 @@
             topCtx.clear();
             //ctx.closePath();
     	}
-    
+
+        const fileNameFromID = () =>
+        {
+            switch(myId%2)
+            {
+                case 0: return "mario.jpg";
+                default: return "luigi.jpg";
+            }
+        }
+
+        const loadImage = () => {
+            
+            myImage = document.querySelector("#img");
+            document.querySelector("#img").src = fileNameFromID();
+        }
         //Setup
         const setupSocket = (socket) => {
             
             socket.on('setId', (data)=>{
                 console.log("got id:"+data.id);
                 myId = data.id;
+                loadImage();
             });
             
             socket.on('syncCanvas',(data)=>{
@@ -95,19 +127,50 @@
         
         //canvas based
         
-        const draw = (shape) =>
-        {
-            if(shape.owner!==myId)
+        const draw = (data) =>
+        {   
+            let ctxx = ctx;
+            
+            if(data.owner!==myId)
             {
-                //then its local 
-                ctx.fillStyle = "red";
+                console.dir('recieved draw');
+                
+                console.dir(data);
+                
+                let image = new Image();
+                image.onload = () =>{
+                    ctxx.save();
+                    ctxx.globalCompositeOperation = "source-over";
+                    //this is default for canvas
+                    ctxx.drawImage(image, data.x, data.y, data.width, data.height);
+                    ctxx.restore();
+                }
+                image.src = data.imgData;
+                /*
+                image = new Image();
+                
+                image.src = data.imgData;
+                image.onload = () => {
+                    ctxx.save();
+                    ctxx.globalCompositeOperation = "source-over";
+                    //this is default for canvas
+                    ctxx.drawImage(image, data.x, data.y, data.width, data.height);
+                    ctxx.restore();
+                };*/
             } else{
                 //networked shape
-                ctx.fillStyle = "black";
+                    ctxx.save();
+                    ctxx.globalCompositeOperation = "source-over";
+                    //this is default for canvas
+                    ctxx.drawImage(myImage, data.x, data.y, data.width, data.height);
+                    ctxx.restore();
             }
             
-            ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
+            
+            
+            //ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
         }
+        
         /*
         const recieveDraw = (data) =>
         {
@@ -163,10 +226,31 @@
             //update last draw
             lastDraw = drawsList[drawsList.length-1].when;
         }
-        
+        /*
+        const setup = () =>{
+            //draw to screen
+            //draw to hidden buffer
+            const data = {
+                x: 300,
+                y: 300,
+                height: 200,
+                width: 200,
+                imgData: //get pixel data from canvas
+            };
+            socket.emit("draw",data);
+        }*/
+                        
         const init = () => {
             draws = {};
-            lastDraw = performance.now;
+            lastDraw = new Date().getTime();
+            
+            sendBufferCanvas=document.createElement("canvas");
+            sendBufferCanvas.height=200;
+            sendBufferCanvas.width=200;
+            sendBufferCtx=sendBufferCanvas.getContext("2d");
+            sendBufferCtx.clear = () =>{
+                topCtx.clearRect(0,0,sendBufferCtx.width, sendBufferCtx.height);
+            }
             let canvas = document.querySelector("#myCanvas");
             ctx = document.querySelector("#myCanvas").getContext("2d");
             ctx.width = canvas.width;
@@ -184,11 +268,11 @@
             
             socket = io.connect();
             setupSocket(socket);
-            /*
-            setInterval(function(){
+            
+            /*setInterval(function(){
                 sendMessage(socket);
-            }, 3000);
-            */
+            }, 3000);*/
+            
         }
         
         window.onload = init;
@@ -203,6 +287,9 @@
         #myCanvas {
             background-color: white;
         }
+        #img{
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -210,5 +297,6 @@
     <canvas id="myCanvas" width="700" height="500">
         Nice try, internet explorer 2.
     </canvas>
+    <img id='img' src='' alt ='nothing'>
 </body>
 </html>
