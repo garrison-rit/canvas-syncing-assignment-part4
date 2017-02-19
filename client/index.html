@@ -129,45 +129,21 @@
         
         const draw = (data) =>
         {   
-            let ctxx = ctx;
             
+            let image = new Image();
+            image.onload = () =>{
+                ctx.save();
+                ctx.globalCompositeOperation = "source-over";
+                //this is default for canvas
+                ctx.drawImage(image, data.x, data.y, data.width, data.height);
+                ctx.restore();
+            }
             if(data.owner!==myId)
             {
-                console.dir('recieved draw');
-                
-                console.dir(data);
-                
-                let image = new Image();
-                image.onload = () =>{
-                    ctxx.save();
-                    ctxx.globalCompositeOperation = "source-over";
-                    //this is default for canvas
-                    ctxx.drawImage(image, data.x, data.y, data.width, data.height);
-                    ctxx.restore();
-                }
                 image.src = data.imgData;
-                /*
-                image = new Image();
-                
-                image.src = data.imgData;
-                image.onload = () => {
-                    ctxx.save();
-                    ctxx.globalCompositeOperation = "source-over";
-                    //this is default for canvas
-                    ctxx.drawImage(image, data.x, data.y, data.width, data.height);
-                    ctxx.restore();
-                };*/
             } else{
-                //networked shape
-                    ctxx.save();
-                    ctxx.globalCompositeOperation = "source-over";
-                    //this is default for canvas
-                    ctxx.drawImage(myImage, data.x, data.y, data.width, data.height);
-                    ctxx.restore();
+                image.src = myImage.src;
             }
-            
-            
-            
             //ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
         }
         
